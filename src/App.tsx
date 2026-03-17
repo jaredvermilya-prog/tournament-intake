@@ -6,7 +6,7 @@ import { z } from "zod";
  * 1) Change WEBHOOK_URL after we create the Google Apps Script endpoint
  * 2) Change BRAND values to match your Wix site
  */
-const WEBHOOK_URL = "PASTE_GOOGLE_APPS_SCRIPT_WEBHOOK_HERE";
+const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwiM7VJRYhK11l3ydp-8QR4wJKfxW12-DFQmkGYug2lsF7VLpdqj74a7b7Xnx3Wkrc9/exec";
 
 const BRAND = {
   title: "Tournament Setup Intake",
