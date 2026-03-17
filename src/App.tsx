@@ -554,20 +554,21 @@ export default function App() {
               ) : null}
 
               <div style={{ marginTop: 16, display: "flex", justifyContent: "space-between", gap: 10 }}>
-                <button
-                  onClick={back}
-                  disabled={stepIdx === 0 || submitting}
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: 16,
-                    border: `1px solid ${BRAND.border}`,
-                    background: BRAND.card,
-                    cursor: stepIdx === 0 || submitting ? "not-allowed" : "pointer",
-                    fontWeight: 800,
-                  }}
-                >
-                  Back
-                </button>
+                  <button
+                    onClick={back}
+                    disabled={stepIdx === 0 || submitting}
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: 16,
+                      border: `1px solid ${BRAND.border}`,
+                      background: BRAND.card,
+                      color: BRAND.text,
+                      cursor: stepIdx === 0 || submitting ? "not-allowed" : "pointer",
+                      fontWeight: 800,
+                    }}
+                  >
+                    Back
+                  </button>
 
                 {stepIdx < steps.length - 1 ? (
                   <button
