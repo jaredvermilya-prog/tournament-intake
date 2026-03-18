@@ -26,7 +26,7 @@ type FieldBase = {
 };
 
 type TextField = FieldBase & {
-  type: "text" | "email" | "phone" | "number" | "textarea";
+  type: "text" | "email" | "phone" | "number" | "textarea" | "url";
   placeholder?: string;
 };
 
@@ -69,7 +69,7 @@ function buildSteps(): Step[] {
         { key: "email", label: "Email", type: "email", required: true, placeholder: "john@email.com" },
         { key: "phone", label: "Phone number", type: "phone", required: true, placeholder: "(555) 555-5555" },
         { key: "organizationName", label: "Organization / group name", type: "text", required: true, placeholder: "Example Charity Foundation" },
-        { key: "organizationWebsite", label: "Organization website (optional)", type: "text", placeholder: "https://example.org" },
+        { key: "organizationWebsite", label: "Organization website (optional)", type: "url", placeholder: "https://example.org" },
         { key: "tournamentName", label: "Tournament name", type: "text", required: true, placeholder: "2026 Charity Bass Bash" },
         {
           key: "eventType",
@@ -101,11 +101,44 @@ function buildSteps(): Step[] {
     {
       id: "location",
       title: "Where will people fish?",
-      subtitle: "Tell us where anglers will be fishing.",
+      subtitle: "Tell us what kind of fishing area the tournament will cover.",
       fields: [
-        { key: "waterbody", label: "Waterbody / area name", type: "text", required: true, placeholder: "Lake Lanier" },
-        { key: "city", label: "City", type: "text", required: true },
-        { key: "state", label: "State", type: "select", required: true, options: US_STATES },
+        {
+          key: "locationType",
+          label: "Fishing area type",
+          type: "select",
+          required: true,
+          options: [
+            "Single waterbody",
+            "Multiple waterbodies",
+            "Statewide / regional area",
+            "Not sure — help me define it",
+          ],
+        },
+        {
+          key: "waterbody",
+          label: "Waterbody / area name",
+          type: "text",
+          placeholder: "Example: Lake Lanier",
+        },
+        {
+          key: "city",
+          label: "City",
+          type: "text",
+          placeholder: "Example: Gainesville",
+        },
+        {
+          key: "state",
+          label: "State",
+          type: "select",
+          options: US_STATES,
+        },
+        {
+          key: "areaDescription",
+          label: "Describe the fishing area",
+          type: "textarea",
+          hint: "Example: Any public waters in Georgia, or list the lakes/region anglers may fish.",
+        },
       ],
     },
     {
@@ -139,7 +172,14 @@ function buildSteps(): Step[] {
             "Best 3–5 fish combined",
             "Total length of all fish",
             "Not sure — recommend for me",
+            "Other",
           ],
+        },
+        {
+          key: "winnerMethodOther",
+          label: 'If you selected "Other", describe how winners should be decided',
+          type: "textarea",
+          placeholder: "Describe the scoring format",
         },
       ],
     },
@@ -215,9 +255,7 @@ const schema = z.object({
   startTime: z.string().min(1, "Start time is required."),
   endDate: z.string().min(1, "End date is required."),
   endTime: z.string().min(1, "End time is required."),
-  waterbody: z.string().min(1, "Waterbody / area name is required."),
-  city: z.string().min(1, "City is required."),
-  state: z.string().min(1, "State is required."),
+  locationType: z.string().min(1, "Fishing area type is required."),
   species: z.array(z.string()).min(1, "Please select at least one species."),
   winnerMethod: z.string().min(1, "Winner method is required."),
   entryType: z.string().min(1, "Entry fee selection is required."),
@@ -258,13 +296,27 @@ function sectionCardStyle() {
     border: `1px solid ${BRAND.border}`,
     borderRadius: 18,
     padding: 18,
-  } as const;
+    width: "100%",
+    boxSizing: "border-box" as const,
+  };
 }
 
 function formatValue(value: any): string {
   if (Array.isArray(value)) return value.join(", ");
   if (value === undefined || value === null || value === "") return "—";
   return String(value);
+}
+
+function todayLocalDateString() {
+  const now = new Date();
+  const tzOffset = now.getTimezoneOffset() * 60000;
+  return new Date(now.getTime() - tzOffset).toISOString().split("T")[0];
+}
+
+function combineDateTime(dateStr?: string, timeStr?: string): Date | null {
+  if (!dateStr || !timeStr) return null;
+  const combined = new Date(`${dateStr}T${timeStr}`);
+  return Number.isNaN(combined.getTime()) ? null : combined;
 }
 
 export default function App() {
@@ -275,7 +327,7 @@ export default function App() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [form, setForm] = useState<FormState>(() => {
-    const raw = localStorage.getItem("tournament_intake_v2");
+    const raw = localStorage.getItem("tournament_intake_v3");
     if (raw) {
       try {
         return JSON.parse(raw);
@@ -283,6 +335,7 @@ export default function App() {
     }
     return {
       eventType: "Charity / Fundraiser",
+      locationType: "Single waterbody",
       state: "GA",
       species: [],
       entryType: "Free",
@@ -291,7 +344,7 @@ export default function App() {
   });
 
   useEffect(() => {
-    localStorage.setItem("tournament_intake_v2", JSON.stringify(form));
+    localStorage.setItem("tournament_intake_v3", JSON.stringify(form));
   }, [form]);
 
   function setValue(key: string, value: any) {
@@ -327,8 +380,53 @@ export default function App() {
       nextErrors.otherSpecies = 'Please enter the species if you selected "Other".';
     }
 
+    if (form.winnerMethod === "Other" && !String(form.winnerMethodOther || "").trim()) {
+      nextErrors.winnerMethodOther = 'Please describe the winner method if you selected "Other".';
+    }
+
     if (form.entryType === "Paid" && !String(form.entryFeeAmount || "").trim()) {
       nextErrors.entryFeeAmount = "Please enter the entry fee amount.";
+    }
+
+    if (form.locationType === "Single waterbody") {
+      if (!String(form.waterbody || "").trim()) nextErrors.waterbody = "Please enter the waterbody name.";
+      if (!String(form.city || "").trim()) nextErrors.city = "Please enter the city.";
+      if (!String(form.state || "").trim()) nextErrors.state = "Please select the state.";
+    }
+
+    if (form.locationType === "Multiple waterbodies" || form.locationType === "Statewide / regional area") {
+      if (!String(form.areaDescription || "").trim()) {
+        nextErrors.areaDescription = "Please describe the fishing area.";
+      }
+      if (!String(form.state || "").trim()) nextErrors.state = "Please select the state.";
+    }
+
+    if (form.locationType === "Not sure — help me define it") {
+      if (!String(form.areaDescription || "").trim()) {
+        nextErrors.areaDescription = "Give us a quick description so we can help define it.";
+      }
+    }
+
+    const today = todayLocalDateString();
+
+    if (form.startDate && form.startDate < today) {
+      nextErrors.startDate = "Start date cannot be in the past.";
+    }
+
+    if (form.endDate && form.endDate < today) {
+      nextErrors.endDate = "End date cannot be in the past.";
+    }
+
+    if (form.startDate && form.endDate && form.endDate < form.startDate) {
+      nextErrors.endDate = "End date cannot be before the start date.";
+    }
+
+    if (form.startDate && form.endDate && form.startDate === form.endDate && form.startTime && form.endTime) {
+      const start = combineDateTime(form.startDate, form.startTime);
+      const end = combineDateTime(form.endDate, form.endTime);
+      if (start && end && end < start) {
+        nextErrors.endTime = "End time cannot be earlier than the start time on the same day.";
+      }
     }
 
     setErrors(nextErrors);
@@ -366,7 +464,7 @@ export default function App() {
         msg: data?.message || "Submitted successfully. We’ll review it and follow up soon.",
       });
 
-      localStorage.removeItem("tournament_intake_v2");
+      localStorage.removeItem("tournament_intake_v3");
     } catch (e: any) {
       setResult({
         ok: false,
@@ -394,6 +492,7 @@ export default function App() {
 
   const step = steps[stepIdx];
   const progress = Math.round(((stepIdx + 1) / steps.length) * 100);
+  const todayMin = todayLocalDateString();
 
   const reviewRows = [
     ["Your name", form.yourName],
@@ -408,12 +507,15 @@ export default function App() {
     ["Start time", form.startTime],
     ["End date", form.endDate],
     ["End time", form.endTime],
-    ["Waterbody / area", form.waterbody],
+    ["Fishing area type", form.locationType],
+    ["Waterbody / area name", form.waterbody],
     ["City", form.city],
     ["State", form.state],
+    ["Area description", form.areaDescription],
     ["Species", form.species],
     ["Other species", form.otherSpecies],
     ["How winners will be decided", form.winnerMethod],
+    ["Winner method (other)", form.winnerMethodOther],
     ["Entry fee", form.entryType],
     ["Entry fee amount", form.entryType === "Paid" ? form.entryFeeAmount : "N/A"],
     ["Prize description", form.prizeDescription],
@@ -426,7 +528,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: BRAND.bg, fontFamily: BRAND.fontFamily }}>
-      <div style={{ maxWidth: 980, margin: "0 auto", padding: "28px 16px 40px" }}>
+      <div style={{ maxWidth: 1120, margin: "0 auto", padding: "28px 16px 40px" }}>
         <header style={{ marginBottom: 18 }}>
           <div style={{ fontSize: 26, fontWeight: 800, color: BRAND.text }}>{BRAND.title}</div>
           <div style={{ marginTop: 6, color: BRAND.muted }}>{BRAND.subtitle}</div>
@@ -452,8 +554,16 @@ export default function App() {
           </div>
         </header>
 
-        <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16 }}>
-          <aside style={{ alignSelf: "start" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "280px minmax(0, 760px)",
+            gap: 16,
+            alignItems: "start",
+            justifyContent: "center",
+          }}
+        >
+          <aside style={{ alignSelf: "start", width: 280 }}>
             <div style={{ ...sectionCardStyle(), padding: 12 }}>
               <div style={{ fontSize: 12, fontWeight: 800, color: BRAND.text, marginBottom: 10 }}>
                 Steps
@@ -487,7 +597,7 @@ export default function App() {
 
             <button
               onClick={() => {
-                localStorage.removeItem("tournament_intake_v2");
+                localStorage.removeItem("tournament_intake_v3");
                 location.reload();
               }}
               style={{
@@ -506,7 +616,7 @@ export default function App() {
             </button>
           </aside>
 
-          <main>
+          <main style={{ width: "100%", minWidth: 0 }}>
             <div style={sectionCardStyle()}>
               <div style={{ fontSize: 18, fontWeight: 800, color: BRAND.text }}>{step.title}</div>
               {step.subtitle ? (
@@ -566,7 +676,30 @@ export default function App() {
                       return null;
                     }
 
+                    if (f.key === "winnerMethodOther" && form.winnerMethod !== "Other") {
+                      return null;
+                    }
+
                     if (f.key === "entryFeeAmount" && form.entryType !== "Paid") {
+                      return null;
+                    }
+
+                    if (f.key === "waterbody" && form.locationType !== "Single waterbody") {
+                      return null;
+                    }
+
+                    if (f.key === "city" && form.locationType !== "Single waterbody") {
+                      return null;
+                    }
+
+                    if (f.key === "state" && form.locationType === "Not sure — help me define it") {
+                      return null;
+                    }
+
+                    if (
+                      f.key === "areaDescription" &&
+                      form.locationType === "Single waterbody"
+                    ) {
                       return null;
                     }
 
@@ -645,6 +778,7 @@ export default function App() {
                               value={String(form[f.key] ?? "")}
                               placeholder={(f as TextField).placeholder || ""}
                               onChange={(e) => setValue(f.key, e.target.value)}
+                              min={f.type === "date" ? todayMin : undefined}
                             />
                           )}
                         </div>
