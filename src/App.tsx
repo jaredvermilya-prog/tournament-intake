@@ -308,6 +308,18 @@ export default function App() {
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<null | { ok: boolean; msg: string }>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth < 768 : false
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const [form, setForm] = useState<FormState>(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -615,16 +627,16 @@ export default function App() {
   if (submitted) {
     return (
       <div style={{ minHeight: "100vh", background: BRAND.bg, fontFamily: BRAND.fontFamily }}>
-        <div style={{ maxWidth: 760, margin: "0 auto", padding: "48px 16px" }}>
+        <div style={{ maxWidth: 760, margin: "0 auto", padding: isMobile ? "24px 12px" : "48px 16px" }}>
           <div
             style={{
               background: BRAND.card,
               border: `1px solid ${BRAND.border}`,
               borderRadius: 18,
-              padding: 24,
+              padding: isMobile ? 18 : 24,
             }}
           >
-            <div style={{ fontSize: 28, fontWeight: 800, color: BRAND.text }}>
+            <div style={{ fontSize: isMobile ? 24 : 28, fontWeight: 800, color: BRAND.text }}>
               Tournament request submitted
             </div>
 
@@ -658,13 +670,23 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: BRAND.bg, fontFamily: BRAND.fontFamily }}>
-      <div style={{ maxWidth: 1120, margin: "0 auto", padding: "28px 16px 40px" }}>
+      <div
+        style={{
+          maxWidth: 1120,
+          margin: "0 auto",
+          padding: isMobile ? "16px 12px 24px" : "28px 16px 40px",
+        }}
+      >
         <header style={{ marginBottom: 18 }}>
-          <div style={{ fontSize: 26, fontWeight: 800, color: BRAND.text }}>{BRAND.title}</div>
-          <div style={{ marginTop: 6, color: BRAND.muted }}>{BRAND.subtitle}</div>
+          <div style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, color: BRAND.text }}>
+            {BRAND.title}
+          </div>
+          <div style={{ marginTop: 6, color: BRAND.muted, fontSize: isMobile ? 14 : 16 }}>
+            {BRAND.subtitle}
+          </div>
 
           <div style={{ marginTop: 16 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: BRAND.muted }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: BRAND.muted, gap: 12 }}>
               <span>
                 Step {stepIdx + 1} of {steps.length}:{" "}
                 <b style={{ color: BRAND.text }}>{step.title}</b>
@@ -687,43 +709,50 @@ export default function App() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "280px minmax(0, 760px)",
+            gridTemplateColumns: isMobile ? "1fr" : "280px minmax(0, 760px)",
             gap: 16,
             alignItems: "start",
             justifyContent: "center",
           }}
         >
-          <aside style={{ alignSelf: "start", width: 280 }}>
-            <div style={{ ...sectionCardStyle(), padding: 12 }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: BRAND.text, marginBottom: 10 }}>
-                Steps
+          <aside
+            style={{
+              alignSelf: "start",
+              width: isMobile ? "100%" : 280,
+            }}
+          >
+            {!isMobile && (
+              <div style={{ ...sectionCardStyle(), padding: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: BRAND.text, marginBottom: 10 }}>
+                  Steps
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {steps.map((s, idx) => {
+                    const active = idx === stepIdx;
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => {
+                          if (idx <= stepIdx) setStepIdx(idx);
+                        }}
+                        style={{
+                          textAlign: "left",
+                          padding: "10px 10px",
+                          borderRadius: 14,
+                          border: `1px solid ${active ? BRAND.primary : BRAND.border}`,
+                          background: active ? BRAND.primary : BRAND.bg,
+                          color: active ? "#fff" : BRAND.text,
+                          cursor: idx <= stepIdx ? "pointer" : "default",
+                        }}
+                      >
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>{s.title}</div>
+                        <div style={{ fontSize: 12, opacity: 0.85 }}>{s.subtitle || ""}</div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {steps.map((s, idx) => {
-                  const active = idx === stepIdx;
-                  return (
-                    <button
-                      key={s.id}
-                      onClick={() => {
-                        if (idx <= stepIdx) setStepIdx(idx);
-                      }}
-                      style={{
-                        textAlign: "left",
-                        padding: "10px 10px",
-                        borderRadius: 14,
-                        border: `1px solid ${active ? BRAND.primary : BRAND.border}`,
-                        background: active ? BRAND.primary : BRAND.bg,
-                        color: active ? "#fff" : BRAND.text,
-                        cursor: idx <= stepIdx ? "pointer" : "default",
-                      }}
-                    >
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>{s.title}</div>
-                      <div style={{ fontSize: 12, opacity: 0.85 }}>{s.subtitle || ""}</div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            )}
 
             <button
               onClick={() => {
@@ -731,7 +760,7 @@ export default function App() {
                 location.reload();
               }}
               style={{
-                marginTop: 12,
+                marginTop: isMobile ? 0 : 12,
                 width: "100%",
                 padding: "10px 12px",
                 borderRadius: 18,
@@ -773,8 +802,8 @@ export default function App() {
                           key={String(label)}
                           style={{
                             display: "grid",
-                            gridTemplateColumns: "220px 1fr",
-                            gap: 12,
+                            gridTemplateColumns: isMobile ? "1fr" : "220px 1fr",
+                            gap: 8,
                             padding: "12px 14px",
                             borderTop: idx === 0 ? "none" : `1px solid ${BRAND.border}`,
                             background: idx % 2 === 0 ? "#ffffff" : "#f8fafc",
@@ -820,7 +849,14 @@ export default function App() {
 
                     return (
                       <div key={f.key}>
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: isMobile ? "column" : "row",
+                            justifyContent: "space-between",
+                            gap: 6,
+                          }}
+                        >
                           <div style={labelStyle()}>
                             {f.label} {f.required ? <span style={{ color: BRAND.danger }}>*</span> : null}
                           </div>
@@ -844,7 +880,13 @@ export default function App() {
                               ))}
                             </select>
                           ) : f.type === "multi" ? (
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+                                gap: 8,
+                              }}
+                            >
                               {f.options.map((o) => {
                                 const selected: string[] = Array.isArray(form[f.key]) ? form[f.key] : [];
                                 const checked = selected.includes(o);
@@ -935,7 +977,14 @@ export default function App() {
                 </div>
               ) : null}
 
-              <div style={{ marginTop: 16, display: "flex", justifyContent: "space-between", gap: 10 }}>
+              <div
+                style={{
+                  marginTop: 16,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 10,
+                }}
+              >
                 <div>
                   {stepIdx > 0 ? (
                     <button
