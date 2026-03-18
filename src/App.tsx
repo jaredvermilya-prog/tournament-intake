@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { z } from "zod";
 
 const WEBHOOK_URL =
   "https://script.google.com/macros/s/AKfycbwiM7VJRYhK11l3ydp-8QR4wJKfxW12-DFQmkGYug2lsF7VLpdqj74a7b7Xnx3Wkrc9/exec";
+
+const STORAGE_KEY = "tournament_intake_v4";
 
 const BRAND = {
   title: "Tournament Setup Intake",
@@ -52,6 +53,8 @@ type Step = {
   subtitle?: string;
   fields: Field[];
 };
+
+type FormState = Record<string, any>;
 
 const US_STATES = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT",
@@ -243,27 +246,6 @@ function buildSteps(): Step[] {
   ];
 }
 
-const schema = z.object({
-  yourName: z.string().min(1, "Your name is required."),
-  email: z.string().email("Valid email is required."),
-  phone: z.string().min(1, "Phone number is required."),
-  organizationName: z.string().min(1, "Organization / group name is required."),
-  tournamentName: z.string().min(1, "Tournament name is required."),
-  eventType: z.string().min(1, "Event type is required."),
-  eventDescription: z.string().min(1, "Description is required."),
-  startDate: z.string().min(1, "Start date is required."),
-  startTime: z.string().min(1, "Start time is required."),
-  endDate: z.string().min(1, "End date is required."),
-  endTime: z.string().min(1, "End time is required."),
-  locationType: z.string().min(1, "Fishing area type is required."),
-  species: z.array(z.string()).min(1, "Please select at least one species."),
-  winnerMethod: z.string().min(1, "Winner method is required."),
-  entryType: z.string().min(1, "Entry fee selection is required."),
-  followUpPreference: z.string().min(1, "Follow-up preference is required."),
-});
-
-type FormState = Record<string, any>;
-
 function inputStyle() {
   return {
     width: "100%",
@@ -327,12 +309,22 @@ export default function App() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [form, setForm] = useState<FormState>(() => {
-    const raw = localStorage.getItem("tournament_intake_v3");
+    const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
         return JSON.parse(raw);
-      } catch {}
+      } catch {
+        return {
+          eventType: "Charity / Fundraiser",
+          locationType: "Single waterbody",
+          state: "GA",
+          species: [],
+          entryType: "Free",
+          followUpPreference: "Phone call",
+        };
+      }
     }
+
     return {
       eventType: "Charity / Fundraiser",
       locationType: "Single waterbody",
@@ -344,7 +336,7 @@ export default function App() {
   });
 
   useEffect(() => {
-    localStorage.setItem("tournament_intake_v3", JSON.stringify(form));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(form));
   }, [form]);
 
   function setValue(key: string, value: any) {
@@ -354,78 +346,284 @@ export default function App() {
   function validateCurrentStep(): boolean {
     const step = steps[stepIdx];
     const nextErrors: Record<string, string> = {};
-
-    const keysToValidate =
-      step.id === "review"
-        ? Object.keys(schema.shape)
-        : step.fields.map((f) => f.key).filter((k) => k in schema.shape);
-
-    const partial: any = {};
-    for (const key of keysToValidate) partial[key] = form[key];
-
-    const pickSchema = schema.pick(
-      Object.fromEntries(keysToValidate.map((k) => [k, true])) as any
-    );
-
-    const parsed = pickSchema.safeParse(partial);
-
-    if (!parsed.success) {
-      for (const issue of parsed.error.issues) {
-        const key = issue.path[0] as string;
-        nextErrors[key] = issue.message;
-      }
-    }
-
-    if (Array.isArray(form.species) && form.species.includes("Other") && !String(form.otherSpecies || "").trim()) {
-      nextErrors.otherSpecies = 'Please enter the species if you selected "Other".';
-    }
-
-    if (form.winnerMethod === "Other" && !String(form.winnerMethodOther || "").trim()) {
-      nextErrors.winnerMethodOther = 'Please describe the winner method if you selected "Other".';
-    }
-
-    if (form.entryType === "Paid" && !String(form.entryFeeAmount || "").trim()) {
-      nextErrors.entryFeeAmount = "Please enter the entry fee amount.";
-    }
-
-    if (form.locationType === "Single waterbody") {
-      if (!String(form.waterbody || "").trim()) nextErrors.waterbody = "Please enter the waterbody name.";
-      if (!String(form.city || "").trim()) nextErrors.city = "Please enter the city.";
-      if (!String(form.state || "").trim()) nextErrors.state = "Please select the state.";
-    }
-
-    if (form.locationType === "Multiple waterbodies" || form.locationType === "Statewide / regional area") {
-      if (!String(form.areaDescription || "").trim()) {
-        nextErrors.areaDescription = "Please describe the fishing area.";
-      }
-      if (!String(form.state || "").trim()) nextErrors.state = "Please select the state.";
-    }
-
-    if (form.locationType === "Not sure — help me define it") {
-      if (!String(form.areaDescription || "").trim()) {
-        nextErrors.areaDescription = "Give us a quick description so we can help define it.";
-      }
-    }
-
     const today = todayLocalDateString();
 
-    if (form.startDate && form.startDate < today) {
-      nextErrors.startDate = "Start date cannot be in the past.";
+    if (step.id === "event_info") {
+      if (!String(form.yourName || "").trim()) {
+        nextErrors.yourName = "Your name is required.";
+      }
+
+      if (!String(form.email || "").trim()) {
+        nextErrors.email = "Email is required.";
+      } else {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(String(form.email).trim())) {
+          nextErrors.email = "Please enter a valid email.";
+        }
+      }
+
+      if (!String(form.phone || "").trim()) {
+        nextErrors.phone = "Phone number is required.";
+      }
+
+      if (!String(form.organizationName || "").trim()) {
+        nextErrors.organizationName = "Organization / group name is required.";
+      }
+
+      if (!String(form.tournamentName || "").trim()) {
+        nextErrors.tournamentName = "Tournament name is required.";
+      }
+
+      if (!String(form.eventType || "").trim()) {
+        nextErrors.eventType = "Event type is required.";
+      }
+
+      if (!String(form.eventDescription || "").trim()) {
+        nextErrors.eventDescription = "Short description is required.";
+      }
     }
 
-    if (form.endDate && form.endDate < today) {
-      nextErrors.endDate = "End date cannot be in the past.";
+    if (step.id === "timing") {
+      if (!String(form.startDate || "").trim()) {
+        nextErrors.startDate = "Start date is required.";
+      }
+
+      if (!String(form.startTime || "").trim()) {
+        nextErrors.startTime = "Start time is required.";
+      }
+
+      if (!String(form.endDate || "").trim()) {
+        nextErrors.endDate = "End date is required.";
+      }
+
+      if (!String(form.endTime || "").trim()) {
+        nextErrors.endTime = "End time is required.";
+      }
+
+      if (form.startDate && form.startDate < today) {
+        nextErrors.startDate = "Start date cannot be in the past.";
+      }
+
+      if (form.endDate && form.endDate < today) {
+        nextErrors.endDate = "End date cannot be in the past.";
+      }
+
+      if (form.startDate && form.endDate && form.endDate < form.startDate) {
+        nextErrors.endDate = "End date cannot be before the start date.";
+      }
+
+      if (
+        form.startDate &&
+        form.endDate &&
+        form.startDate === form.endDate &&
+        form.startTime &&
+        form.endTime
+      ) {
+        const start = combineDateTime(form.startDate, form.startTime);
+        const end = combineDateTime(form.endDate, form.endTime);
+
+        if (start && end && end < start) {
+          nextErrors.endTime =
+            "End time cannot be earlier than the start time on the same day.";
+        }
+      }
     }
 
-    if (form.startDate && form.endDate && form.endDate < form.startDate) {
-      nextErrors.endDate = "End date cannot be before the start date.";
+    if (step.id === "location") {
+      if (!String(form.locationType || "").trim()) {
+        nextErrors.locationType = "Fishing area type is required.";
+      }
+
+      if (form.locationType === "Single waterbody") {
+        if (!String(form.waterbody || "").trim()) {
+          nextErrors.waterbody = "Please enter the waterbody name.";
+        }
+        if (!String(form.city || "").trim()) {
+          nextErrors.city = "Please enter the city.";
+        }
+        if (!String(form.state || "").trim()) {
+          nextErrors.state = "Please select the state.";
+        }
+      }
+
+      if (
+        form.locationType === "Multiple waterbodies" ||
+        form.locationType === "Statewide / regional area"
+      ) {
+        if (!String(form.areaDescription || "").trim()) {
+          nextErrors.areaDescription = "Please describe the fishing area.";
+        }
+        if (!String(form.state || "").trim()) {
+          nextErrors.state = "Please select the state.";
+        }
+      }
+
+      if (form.locationType === "Not sure — help me define it") {
+        if (!String(form.areaDescription || "").trim()) {
+          nextErrors.areaDescription =
+            "Give us a quick description so we can help define it.";
+        }
+      }
     }
 
-    if (form.startDate && form.endDate && form.startDate === form.endDate && form.startTime && form.endTime) {
-      const start = combineDateTime(form.startDate, form.startTime);
-      const end = combineDateTime(form.endDate, form.endTime);
-      if (start && end && end < start) {
-        nextErrors.endTime = "End time cannot be earlier than the start time on the same day.";
+    if (step.id === "species") {
+      if (!Array.isArray(form.species) || form.species.length === 0) {
+        nextErrors.species = "Please select at least one species.";
+      }
+
+      if (
+        Array.isArray(form.species) &&
+        form.species.includes("Other") &&
+        !String(form.otherSpecies || "").trim()
+      ) {
+        nextErrors.otherSpecies =
+          'Please enter the species if you selected "Other".';
+      }
+    }
+
+    if (step.id === "winners") {
+      if (!String(form.winnerMethod || "").trim()) {
+        nextErrors.winnerMethod = "Winner method is required.";
+      }
+
+      if (
+        form.winnerMethod === "Other" &&
+        !String(form.winnerMethodOther || "").trim()
+      ) {
+        nextErrors.winnerMethodOther =
+          'Please describe the winner method if you selected "Other".';
+      }
+    }
+
+    if (step.id === "entry_prizes") {
+      if (!String(form.entryType || "").trim()) {
+        nextErrors.entryType = "Entry fee selection is required.";
+      }
+
+      if (
+        form.entryType === "Paid" &&
+        !String(form.entryFeeAmount || "").trim()
+      ) {
+        nextErrors.entryFeeAmount = "Please enter the entry fee amount.";
+      }
+    }
+
+    if (step.id === "follow_up") {
+      if (!String(form.followUpPreference || "").trim()) {
+        nextErrors.followUpPreference = "Follow-up preference is required.";
+      }
+    }
+
+    if (step.id === "review") {
+      const requiredChecks = [
+        "yourName",
+        "email",
+        "phone",
+        "organizationName",
+        "tournamentName",
+        "eventType",
+        "eventDescription",
+        "startDate",
+        "startTime",
+        "endDate",
+        "endTime",
+        "locationType",
+        "winnerMethod",
+        "entryType",
+        "followUpPreference",
+      ];
+
+      requiredChecks.forEach((key) => {
+        if (!String(form[key] ?? "").trim()) {
+          nextErrors[key] = "This field is required.";
+        }
+      });
+
+      if (!Array.isArray(form.species) || form.species.length === 0) {
+        nextErrors.species = "Please select at least one species.";
+      }
+
+      if (
+        Array.isArray(form.species) &&
+        form.species.includes("Other") &&
+        !String(form.otherSpecies || "").trim()
+      ) {
+        nextErrors.otherSpecies =
+          'Please enter the species if you selected "Other".';
+      }
+
+      if (
+        form.winnerMethod === "Other" &&
+        !String(form.winnerMethodOther || "").trim()
+      ) {
+        nextErrors.winnerMethodOther =
+          'Please describe the winner method if you selected "Other".';
+      }
+
+      if (
+        form.entryType === "Paid" &&
+        !String(form.entryFeeAmount || "").trim()
+      ) {
+        nextErrors.entryFeeAmount = "Please enter the entry fee amount.";
+      }
+
+      if (form.locationType === "Single waterbody") {
+        if (!String(form.waterbody || "").trim()) {
+          nextErrors.waterbody = "Please enter the waterbody name.";
+        }
+        if (!String(form.city || "").trim()) {
+          nextErrors.city = "Please enter the city.";
+        }
+        if (!String(form.state || "").trim()) {
+          nextErrors.state = "Please select the state.";
+        }
+      }
+
+      if (
+        form.locationType === "Multiple waterbodies" ||
+        form.locationType === "Statewide / regional area"
+      ) {
+        if (!String(form.areaDescription || "").trim()) {
+          nextErrors.areaDescription = "Please describe the fishing area.";
+        }
+        if (!String(form.state || "").trim()) {
+          nextErrors.state = "Please select the state.";
+        }
+      }
+
+      if (form.locationType === "Not sure — help me define it") {
+        if (!String(form.areaDescription || "").trim()) {
+          nextErrors.areaDescription =
+            "Give us a quick description so we can help define it.";
+        }
+      }
+
+      if (form.startDate && form.startDate < today) {
+        nextErrors.startDate = "Start date cannot be in the past.";
+      }
+
+      if (form.endDate && form.endDate < today) {
+        nextErrors.endDate = "End date cannot be in the past.";
+      }
+
+      if (form.startDate && form.endDate && form.endDate < form.startDate) {
+        nextErrors.endDate = "End date cannot be before the start date.";
+      }
+
+      if (
+        form.startDate &&
+        form.endDate &&
+        form.startDate === form.endDate &&
+        form.startTime &&
+        form.endTime
+      ) {
+        const start = combineDateTime(form.startDate, form.startTime);
+        const end = combineDateTime(form.endDate, form.endTime);
+
+        if (start && end && end < start) {
+          nextErrors.endTime =
+            "End time cannot be earlier than the start time on the same day.";
+        }
       }
     }
 
@@ -464,7 +662,7 @@ export default function App() {
         msg: data?.message || "Submitted successfully. We’ll review it and follow up soon.",
       });
 
-      localStorage.removeItem("tournament_intake_v3");
+      localStorage.removeItem(STORAGE_KEY);
     } catch (e: any) {
       setResult({
         ok: false,
@@ -597,7 +795,7 @@ export default function App() {
 
             <button
               onClick={() => {
-                localStorage.removeItem("tournament_intake_v3");
+                localStorage.removeItem(STORAGE_KEY);
                 location.reload();
               }}
               style={{
@@ -696,10 +894,7 @@ export default function App() {
                       return null;
                     }
 
-                    if (
-                      f.key === "areaDescription" &&
-                      form.locationType === "Single waterbody"
-                    ) {
+                    if (f.key === "areaDescription" && form.locationType === "Single waterbody") {
                       return null;
                     }
 
@@ -789,6 +984,22 @@ export default function App() {
                   })
                 )}
               </div>
+
+              {Object.keys(errors).length > 0 ? (
+                <div
+                  style={{
+                    marginTop: 14,
+                    padding: "10px 12px",
+                    borderRadius: 14,
+                    border: `1px solid ${BRAND.danger}`,
+                    background: "#fff1f2",
+                    color: BRAND.text,
+                    fontSize: 13,
+                  }}
+                >
+                  Please fix the highlighted fields before continuing.
+                </div>
+              ) : null}
 
               {result ? (
                 <div
