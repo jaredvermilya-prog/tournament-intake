@@ -305,6 +305,7 @@ export default function App() {
   const steps = useMemo(() => buildSteps(), []);
   const [stepIdx, setStepIdx] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<null | { ok: boolean; msg: string }>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -349,9 +350,7 @@ export default function App() {
     const today = todayLocalDateString();
 
     if (step.id === "event_info") {
-      if (!String(form.yourName || "").trim()) {
-        nextErrors.yourName = "Your name is required.";
-      }
+      if (!String(form.yourName || "").trim()) nextErrors.yourName = "Your name is required.";
 
       if (!String(form.email || "").trim()) {
         nextErrors.email = "Email is required.";
@@ -362,69 +361,30 @@ export default function App() {
         }
       }
 
-      if (!String(form.phone || "").trim()) {
-        nextErrors.phone = "Phone number is required.";
-      }
-
-      if (!String(form.organizationName || "").trim()) {
-        nextErrors.organizationName = "Organization / group name is required.";
-      }
-
-      if (!String(form.tournamentName || "").trim()) {
-        nextErrors.tournamentName = "Tournament name is required.";
-      }
-
-      if (!String(form.eventType || "").trim()) {
-        nextErrors.eventType = "Event type is required.";
-      }
-
-      if (!String(form.eventDescription || "").trim()) {
-        nextErrors.eventDescription = "Short description is required.";
-      }
+      if (!String(form.phone || "").trim()) nextErrors.phone = "Phone number is required.";
+      if (!String(form.organizationName || "").trim()) nextErrors.organizationName = "Organization / group name is required.";
+      if (!String(form.tournamentName || "").trim()) nextErrors.tournamentName = "Tournament name is required.";
+      if (!String(form.eventType || "").trim()) nextErrors.eventType = "Event type is required.";
+      if (!String(form.eventDescription || "").trim()) nextErrors.eventDescription = "Short description is required.";
     }
 
     if (step.id === "timing") {
-      if (!String(form.startDate || "").trim()) {
-        nextErrors.startDate = "Start date is required.";
-      }
+      if (!String(form.startDate || "").trim()) nextErrors.startDate = "Start date is required.";
+      if (!String(form.startTime || "").trim()) nextErrors.startTime = "Start time is required.";
+      if (!String(form.endDate || "").trim()) nextErrors.endDate = "End date is required.";
+      if (!String(form.endTime || "").trim()) nextErrors.endTime = "End time is required.";
 
-      if (!String(form.startTime || "").trim()) {
-        nextErrors.startTime = "Start time is required.";
-      }
-
-      if (!String(form.endDate || "").trim()) {
-        nextErrors.endDate = "End date is required.";
-      }
-
-      if (!String(form.endTime || "").trim()) {
-        nextErrors.endTime = "End time is required.";
-      }
-
-      if (form.startDate && form.startDate < today) {
-        nextErrors.startDate = "Start date cannot be in the past.";
-      }
-
-      if (form.endDate && form.endDate < today) {
-        nextErrors.endDate = "End date cannot be in the past.";
-      }
-
+      if (form.startDate && form.startDate < today) nextErrors.startDate = "Start date cannot be in the past.";
+      if (form.endDate && form.endDate < today) nextErrors.endDate = "End date cannot be in the past.";
       if (form.startDate && form.endDate && form.endDate < form.startDate) {
         nextErrors.endDate = "End date cannot be before the start date.";
       }
 
-      if (
-        form.startDate &&
-        form.endDate &&
-        form.startDate === form.endDate &&
-        form.startTime &&
-        form.endTime
-      ) {
+      if (form.startDate && form.endDate && form.startDate === form.endDate && form.startTime && form.endTime) {
         const start = combineDateTime(form.startDate, form.startTime);
         const end = combineDateTime(form.endDate, form.endTime);
-
         if (start && end && end < start) {
-          nextErrors.endTime =
-            "End time cannot be earlier than the start time on the same day.";
+          nextErrors.endTime = "End time cannot be earlier than the start time on the same day.";
         }
       }
     }
@@ -435,33 +395,19 @@ export default function App() {
       }
 
       if (form.locationType === "Single waterbody") {
-        if (!String(form.waterbody || "").trim()) {
-          nextErrors.waterbody = "Please enter the waterbody name.";
-        }
-        if (!String(form.city || "").trim()) {
-          nextErrors.city = "Please enter the city.";
-        }
-        if (!String(form.state || "").trim()) {
-          nextErrors.state = "Please select the state.";
-        }
+        if (!String(form.waterbody || "").trim()) nextErrors.waterbody = "Please enter the waterbody name.";
+        if (!String(form.city || "").trim()) nextErrors.city = "Please enter the city.";
+        if (!String(form.state || "").trim()) nextErrors.state = "Please select the state.";
       }
 
-      if (
-        form.locationType === "Multiple waterbodies" ||
-        form.locationType === "Statewide / regional area"
-      ) {
-        if (!String(form.areaDescription || "").trim()) {
-          nextErrors.areaDescription = "Please describe the fishing area.";
-        }
-        if (!String(form.state || "").trim()) {
-          nextErrors.state = "Please select the state.";
-        }
+      if (form.locationType === "Multiple waterbodies" || form.locationType === "Statewide / regional area") {
+        if (!String(form.areaDescription || "").trim()) nextErrors.areaDescription = "Please describe the fishing area.";
+        if (!String(form.state || "").trim()) nextErrors.state = "Please select the state.";
       }
 
       if (form.locationType === "Not sure — help me define it") {
         if (!String(form.areaDescription || "").trim()) {
-          nextErrors.areaDescription =
-            "Give us a quick description so we can help define it.";
+          nextErrors.areaDescription = "Give us a quick description so we can help define it.";
         }
       }
     }
@@ -471,39 +417,23 @@ export default function App() {
         nextErrors.species = "Please select at least one species.";
       }
 
-      if (
-        Array.isArray(form.species) &&
-        form.species.includes("Other") &&
-        !String(form.otherSpecies || "").trim()
-      ) {
-        nextErrors.otherSpecies =
-          'Please enter the species if you selected "Other".';
+      if (Array.isArray(form.species) && form.species.includes("Other") && !String(form.otherSpecies || "").trim()) {
+        nextErrors.otherSpecies = 'Please enter the species if you selected "Other".';
       }
     }
 
     if (step.id === "winners") {
-      if (!String(form.winnerMethod || "").trim()) {
-        nextErrors.winnerMethod = "Winner method is required.";
-      }
+      if (!String(form.winnerMethod || "").trim()) nextErrors.winnerMethod = "Winner method is required.";
 
-      if (
-        form.winnerMethod === "Other" &&
-        !String(form.winnerMethodOther || "").trim()
-      ) {
-        nextErrors.winnerMethodOther =
-          'Please describe the winner method if you selected "Other".';
+      if (form.winnerMethod === "Other" && !String(form.winnerMethodOther || "").trim()) {
+        nextErrors.winnerMethodOther = 'Please describe the winner method if you selected "Other".';
       }
     }
 
     if (step.id === "entry_prizes") {
-      if (!String(form.entryType || "").trim()) {
-        nextErrors.entryType = "Entry fee selection is required.";
-      }
+      if (!String(form.entryType || "").trim()) nextErrors.entryType = "Entry fee selection is required.";
 
-      if (
-        form.entryType === "Paid" &&
-        !String(form.entryFeeAmount || "").trim()
-      ) {
+      if (form.entryType === "Paid" && !String(form.entryFeeAmount || "").trim()) {
         nextErrors.entryFeeAmount = "Please enter the entry fee amount.";
       }
     }
@@ -534,95 +464,53 @@ export default function App() {
       ];
 
       requiredChecks.forEach((key) => {
-        if (!String(form[key] ?? "").trim()) {
-          nextErrors[key] = "This field is required.";
-        }
+        if (!String(form[key] ?? "").trim()) nextErrors[key] = "This field is required.";
       });
 
       if (!Array.isArray(form.species) || form.species.length === 0) {
         nextErrors.species = "Please select at least one species.";
       }
 
-      if (
-        Array.isArray(form.species) &&
-        form.species.includes("Other") &&
-        !String(form.otherSpecies || "").trim()
-      ) {
-        nextErrors.otherSpecies =
-          'Please enter the species if you selected "Other".';
+      if (Array.isArray(form.species) && form.species.includes("Other") && !String(form.otherSpecies || "").trim()) {
+        nextErrors.otherSpecies = 'Please enter the species if you selected "Other".';
       }
 
-      if (
-        form.winnerMethod === "Other" &&
-        !String(form.winnerMethodOther || "").trim()
-      ) {
-        nextErrors.winnerMethodOther =
-          'Please describe the winner method if you selected "Other".';
+      if (form.winnerMethod === "Other" && !String(form.winnerMethodOther || "").trim()) {
+        nextErrors.winnerMethodOther = 'Please describe the winner method if you selected "Other".';
       }
 
-      if (
-        form.entryType === "Paid" &&
-        !String(form.entryFeeAmount || "").trim()
-      ) {
+      if (form.entryType === "Paid" && !String(form.entryFeeAmount || "").trim()) {
         nextErrors.entryFeeAmount = "Please enter the entry fee amount.";
       }
 
       if (form.locationType === "Single waterbody") {
-        if (!String(form.waterbody || "").trim()) {
-          nextErrors.waterbody = "Please enter the waterbody name.";
-        }
-        if (!String(form.city || "").trim()) {
-          nextErrors.city = "Please enter the city.";
-        }
-        if (!String(form.state || "").trim()) {
-          nextErrors.state = "Please select the state.";
-        }
+        if (!String(form.waterbody || "").trim()) nextErrors.waterbody = "Please enter the waterbody name.";
+        if (!String(form.city || "").trim()) nextErrors.city = "Please enter the city.";
+        if (!String(form.state || "").trim()) nextErrors.state = "Please select the state.";
       }
 
-      if (
-        form.locationType === "Multiple waterbodies" ||
-        form.locationType === "Statewide / regional area"
-      ) {
-        if (!String(form.areaDescription || "").trim()) {
-          nextErrors.areaDescription = "Please describe the fishing area.";
-        }
-        if (!String(form.state || "").trim()) {
-          nextErrors.state = "Please select the state.";
-        }
+      if (form.locationType === "Multiple waterbodies" || form.locationType === "Statewide / regional area") {
+        if (!String(form.areaDescription || "").trim()) nextErrors.areaDescription = "Please describe the fishing area.";
+        if (!String(form.state || "").trim()) nextErrors.state = "Please select the state.";
       }
 
       if (form.locationType === "Not sure — help me define it") {
         if (!String(form.areaDescription || "").trim()) {
-          nextErrors.areaDescription =
-            "Give us a quick description so we can help define it.";
+          nextErrors.areaDescription = "Give us a quick description so we can help define it.";
         }
       }
 
-      if (form.startDate && form.startDate < today) {
-        nextErrors.startDate = "Start date cannot be in the past.";
-      }
-
-      if (form.endDate && form.endDate < today) {
-        nextErrors.endDate = "End date cannot be in the past.";
-      }
-
+      if (form.startDate && form.startDate < today) nextErrors.startDate = "Start date cannot be in the past.";
+      if (form.endDate && form.endDate < today) nextErrors.endDate = "End date cannot be in the past.";
       if (form.startDate && form.endDate && form.endDate < form.startDate) {
         nextErrors.endDate = "End date cannot be before the start date.";
       }
 
-      if (
-        form.startDate &&
-        form.endDate &&
-        form.startDate === form.endDate &&
-        form.startTime &&
-        form.endTime
-      ) {
+      if (form.startDate && form.endDate && form.startDate === form.endDate && form.startTime && form.endTime) {
         const start = combineDateTime(form.startDate, form.startTime);
         const end = combineDateTime(form.endDate, form.endTime);
-
         if (start && end && end < start) {
-          nextErrors.endTime =
-            "End time cannot be earlier than the start time on the same day.";
+          nextErrors.endTime = "End time cannot be earlier than the start time on the same day.";
         }
       }
     }
@@ -661,7 +549,7 @@ export default function App() {
         ok: true,
         msg: data?.message || "Submitted successfully. We’ll review it and follow up soon.",
       });
-
+      setSubmitted(true);
       localStorage.removeItem(STORAGE_KEY);
     } catch (e: any) {
       setResult({
@@ -723,6 +611,50 @@ export default function App() {
     ["Additional notes", form.additionalNotes],
     ["Follow-up preference", form.followUpPreference],
   ];
+
+  if (submitted) {
+    return (
+      <div style={{ minHeight: "100vh", background: BRAND.bg, fontFamily: BRAND.fontFamily }}>
+        <div style={{ maxWidth: 760, margin: "0 auto", padding: "48px 16px" }}>
+          <div
+            style={{
+              background: BRAND.card,
+              border: `1px solid ${BRAND.border}`,
+              borderRadius: 18,
+              padding: 24,
+            }}
+          >
+            <div style={{ fontSize: 28, fontWeight: 800, color: BRAND.text }}>
+              Tournament request submitted
+            </div>
+
+            <div style={{ marginTop: 12, fontSize: 15, color: BRAND.text, lineHeight: 1.6 }}>
+              Thanks — we’ve got what we need.
+              <br /><br />
+              We’ll review your submission and reach out to finalize your tournament.
+              Most events are completed with a quick 5–10 minute call.
+            </div>
+
+            <div
+              style={{
+                marginTop: 20,
+                padding: "14px 16px",
+                borderRadius: 14,
+                background: "#f8fafc",
+                border: `1px solid ${BRAND.border}`,
+                color: BRAND.text,
+                lineHeight: 1.6,
+              }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>Need to reach us?</div>
+              <div>Email: tournaments@aingler.ai</div>
+              <div>Phone: 404.445.8891</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: BRAND.bg, fontFamily: BRAND.fontFamily }}>
@@ -852,20 +784,6 @@ export default function App() {
                           <div style={{ fontSize: 13, color: BRAND.text }}>{formatValue(value)}</div>
                         </div>
                       ))}
-                    </div>
-
-                    <div
-                      style={{
-                        padding: "12px 14px",
-                        borderRadius: 14,
-                        background: "#f8fafc",
-                        border: `1px solid ${BRAND.border}`,
-                        color: BRAND.text,
-                        fontSize: 13,
-                      }}
-                    >
-                      Thanks — we’ve got what we need. We’ll review your submission and reach out to finalize your
-                      tournament. Most events are completed with a quick 5–10 minute call.
                     </div>
                   </div>
                 ) : (
